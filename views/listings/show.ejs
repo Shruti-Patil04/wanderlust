@@ -1,6 +1,6 @@
+
+
 <% layout("/layouts/boilerplate") %>
-
-
 
  <script>
     const mapToken = "<%= process.env.MAP_TOKEN %>";
@@ -27,7 +27,7 @@
   <br />
 </div>
 
-<% if(currUser && listing.owner._id.equals(currUser._id)) {%>
+<% if (currUser && listing.owner && listing.owner._id.toString() === currUser._id.toString()) { %>
 <div class="btns">
     <a href="/listings/<%= listing._id %>/edit" class="btn btn-dark col-1 offset-3 edit-btn">Edit</a>
     <form method="POST" action="/listings/<%=listing._id%>?_method=DELETE">
@@ -101,7 +101,6 @@
 </div>
 
 <script src="/js/map.js"></script>
-
 
 
 

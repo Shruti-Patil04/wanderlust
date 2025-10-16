@@ -18,15 +18,16 @@ module.exports.showListing=async (req, res) => {
   .populate({
     path:"reviews",
     populate:{
-      path:"author",
-    },
+      path:"author"
+    }
   }).populate("owner");
   if(!listing){
     req.flash("error","Listing you requested for Does not exists");
     return res.redirect("/listings");
   }
   console.log("Listing owner:", listing.owner);
-
+  console.log("Listing geometry:", listing.geometry); 
+  
   res.render("listings/show.ejs", { listing, currUser: req.user });
 
 };
@@ -63,17 +64,44 @@ module.exports.renderEditForm=async (req, res) => {
   res.render("listings/edit.ejs", { listing,originalImageUrl });
 };
 
-module.exports.updateListing=async (req, res) => {
-  let { id } = req.params;
-  let listing=await Listing.findByIdAndUpdate(id, { ...req.body.listing });
-  if(typeof req.file !=="undefined"){
-   let url=req.file.path;
-  let filename=req.file.filename;
-  listing.image={url,filename};
-  await listing.save();
-  }
-  req.flash("success","Listing Updated!");
-  return res.redirect(`/listings/${id}`);
+module.exports.updateListing = async (req, res) => {
+    let { id } = req.params;
+    
+    // 1. Find the listing first (instead of using findByIdAndUpdate)
+    // We need the listing object to manually update geometry and save.
+    let listing = await Listing.findById(id);
+
+    // 2. Update the listing's basic properties
+    listing.set({ ...req.body.listing });
+
+    // 3. Geocode the new location (if the location/country/etc. was changed)
+    // We access the potentially new location from req.body.listing
+    let response = await geocodingclient.forwardGeocode({
+        query: req.body.listing.location, // Assuming 'location' is the field that holds the address
+        limit: 1,
+    }).send();
+
+    // 4. Update the geometry with the new coordinates
+    // This is the CRITICAL missing step for coordinate updates!
+    if (response && response.body.features && response.body.features.length) {
+        listing.geometry = response.body.features[0].geometry;
+    } else {
+        // Optional: Handle case where geocoding fails (e.g., location is invalid)
+        console.error("Geocoding failed for the updated location.");
+    }
+    
+    // 5. Update the image if a new file was uploaded
+    if (typeof req.file !== "undefined") {
+        let url = req.file.path;
+        let filename = req.file.filename;
+        listing.image = { url, filename };
+    }
+
+    // 6. Save all changes (including geometry and potentially image)
+    await listing.save();
+
+    req.flash("success", "Listing Updated!");
+    res.redirect(`/listings/${id}`);
 };
 
 module.exports.destroyListing=async (req, res) => {
